@@ -1,0 +1,7 @@
+# Temporary stuff
+*~
+
+# Local Configuration
+.vscode/
+.idea/
+.DS_Store
