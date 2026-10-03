@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# Stamp all PDF files in a directory with custom text and save them with a suffix.
+# =====================================================================================================================
+# Usage:
+#   bulk-stamp-text <directory> <stamp text> <suffix>
+#
+# Examples:
+#   bulk-stamp-text path/to/invoices/ "Paid on 2026-08-28" " - paid"
+#
+# Workflow steps:
+#   - Finds all PDF files in the target directory
+#   - Skips files that already end with the specified suffix
+#   - Stamps each PDF using 'pdfmt stamp text'
+#   - Saves the stamped result alongside the original file
+# =====================================================================================================================
+set -euo pipefail
+
+function main()
+{
+    local -r dir="${1:-}"
+    local -r stamp_text="${2:-}"
+    local -r suffix="${3:-}"
+
+    # Parameter validation
+    if [[ -z "$dir" || -z "$stamp_text" || -z "$suffix" ]]; then
+        echo "ERROR: Missing required arguments." >&2
+        echo "Usage: bulk-stamp-text <directory> <stamp text> <suffix>" >&2
+        echo "Example: bulk-stamp-text path/to/invoices/ \"Paid on 2026-08-28\" \" - paid\"" >&2
+        exit 1
+    fi
+
+    if [[ ! -d "$dir" ]]; then
+        echo "ERROR: Directory '$dir' does not exist." >&2
+        exit 1
+    fi
+
+    # Enable nullglob and nocaseglob to match .pdf and .PDF without duplicates
+    shopt -s nullglob nocaseglob
+    local -a pdf_files=("$dir"/*.pdf)
+
+    if [[ ${#pdf_files[@]} -eq 0 ]]; then
+        echo "INFO: No PDF files found in: $dir"
+        exit 0
+    fi
+
+    local -r target_suffix="${suffix}.pdf"
+    for file in "${pdf_files[@]}"; do
+        # Skip files that already have the target suffix to prevent re-stamping
+        if [[ "$file" == *"$target_suffix" ]]; then
+            continue
+        fi
+
+        local output_file="${file%.*}${suffix}.pdf"
+        if ! pdfmt stamp text "$file" "$stamp_text" "$output_file"; then
+            echo "ERROR: Failed to stamp '$file'." >&2
+        fi
+    done
+}
+
+main "$@"

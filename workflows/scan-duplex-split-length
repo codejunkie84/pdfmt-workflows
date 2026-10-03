@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# Scan front/back pages in duplex mode and split the resulting PDF into fixed-length chunks.
+# =====================================================================================================================
+# Usage:
+#   scan-duplex-split-length <adf|flatbed> <length> <prefix>
+#
+# Examples:
+#   scan-duplex-split-length adf 2 invoices_
+#
+# Depends on workflows:
+#   - scan-duplex
+#
+# Workflow steps:
+#   - Executes 'scan-duplex' workflow to generate a single duplex PDF
+#   - Splits the duplex PDF into chunks of <length> pages using <prefix>
+#   - Cleans up temporary duplex scan file on success
+# =====================================================================================================================
+set -euo pipefail
+
+function main()
+{
+    local -r source="${1:-}"
+    local -r length="${2:-}"
+    local -r prefix="${3:-}"
+
+    # Parameter validation
+    if [[ -z "$source" || -z "$length" || -z "$prefix" ]]; then
+        echo "ERROR: Missing required arguments." >&2
+        echo "Usage: scan-duplex-split-length <adf|flatbed> <length> <prefix>" >&2
+        exit 1
+    fi
+
+    if ! [[ "$length" =~ ^[1-9][0-9]*$ ]]; then
+        echo "ERROR: Length must be a positive integer (got '$length')." >&2
+        exit 1
+    fi
+
+    # Temporary file path for duplex output
+    local -r clean_prefix="$(echo "$prefix" | tr -cd 'a-zA-Z0-9_-')"
+    local -r duplex_tmp="/tmp/pdfmt_${clean_prefix}_duplex_tmp.pdf"
+
+    # Run duplex scan workflow
+    if ! pdfmt workflow exec scan-duplex "$source" "$duplex_tmp"; then
+        echo "ERROR: Duplex scan failed." >&2
+        exit 1
+    fi
+
+    # Split document into chunks
+    if pdfmt split length "$duplex_tmp" "$length" "$prefix"; then
+        rm -f "$duplex_tmp"
+    else
+        echo "ERROR: Splitting failed! Temporary file preserved: $duplex_tmp" >&2
+        exit 1
+    fi
+}
+
+main "$@"

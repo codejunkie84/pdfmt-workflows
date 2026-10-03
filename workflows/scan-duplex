@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# =====================================================================================================================
+# Scan front and back pages in duplex mode and merge them.
+#
+# Usage:
+#   scan-duplex <adf|flatbed> <output.pdf>
+#
+# Examples:
+#   scan-duplex adf user-manual.pdf
+#
+# Depends on workflows:
+#   - None
+#
+# Workflow steps:
+#   - Scan front pages (skip if temp scan of front pages already exists)
+#   - Prompts to flip papers (skip if temp scan of back pages already exists)
+#   - Scan back pages (skip if temp scan of back pages already exists)
+#   - Merges into a single PDF
+#   - cleans up on success
+# =====================================================================================================================
+set -euo pipefail
+
+function main()
+{
+    local -r source="${1:-}"
+    local -r output_file="${2:-}"
+
+    # Parameter Validation
+    if [[ -z "$source" || -z "$output_file" ]]; then
+        echo "ERROR: Missing required arguments." >&2
+        echo "Usage: scan-duplex <adf|flatbed> <output.pdf>" >&2
+        exit 1
+    fi
+
+    if [[ "$source" != "adf" && "$source" != "flatbed" ]]; then
+        echo "ERROR: Invalid scan source '$source'. Must be 'adf' or 'flatbed'." >&2
+        exit 1
+    fi
+
+    # Temporary File Paths
+    local -r base_name="$(basename "$output_file" .pdf)"
+    local -r clean_name="$(echo "$base_name" | tr -cd 'a-zA-Z0-9_-')"
+    local -r front_tmp="/tmp/pdfmt_${clean_name}_front.pdf"
+    local -r back_tmp="/tmp/pdfmt_${clean_name}_back.pdf"
+
+    # Scan Front Pages (Skip if exists)
+    if [[ -f "$front_tmp" ]]; then
+        echo "INFO: Found existing front scan ($front_tmp). Skipping."
+    else
+        pdfmt scan "$source" "$front_tmp"
+    fi
+
+    # Scan Back Pages (Skip if exists)
+    if [[ -f "$back_tmp" ]]; then
+        echo "INFO: Found existing back scan ($back_tmp). Skipping."
+    else
+        read -r -p ">>> Turn the paper stack and press ENTER to continue..."
+        pdfmt scan "$source" "$back_tmp"
+    fi
+
+    # Merge & Safe Cleanup
+    if pdfmt merge duplex "$front_tmp" "$back_tmp" "$output_file"; then
+        rm -f "$front_tmp" "$back_tmp"
+    else
+        echo "ERROR: Merge failed! Temporary files preserved:" >&2
+        echo "> Front: $front_tmp" >&2
+        echo "> Back:  $back_tmp" >&2
+        exit 1
+    fi
+}
+
+main "$@"
