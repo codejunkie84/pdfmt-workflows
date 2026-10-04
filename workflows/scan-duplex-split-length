@@ -40,7 +40,7 @@ function main()
     local -r duplex_tmp="/tmp/pdfmt_${clean_prefix}_duplex_tmp.pdf"
 
     # Run duplex scan workflow
-    if ! pdfmt workflow exec scan-duplex "$source" "$duplex_tmp"; then
+    if ! pdfmt workflow run scan-duplex "$source" "$duplex_tmp"; then
         echo "ERROR: Duplex scan failed." >&2
         exit 1
     fi
